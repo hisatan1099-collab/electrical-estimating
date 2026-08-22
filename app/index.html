@@ -85,6 +85,7 @@ body{
 canvas{display:block;}
 #pdfCanvas{background:#fff;}
 #overlay{position:absolute;top:0;left:0;cursor:crosshair;touch-action:none;}
+#minimap{position:absolute;background:#050c15;border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,.5);border-radius:4px;z-index:10;}
 .empty-hint{
   color:var(--text-lo);font-family:'JetBrains Mono',monospace;font-size:13px;text-align:center;margin-top:80px;
 }
@@ -146,6 +147,21 @@ canvas{display:block;}
   background:var(--navy-0);border:1px solid var(--border);border-radius:var(--radius);
   color:var(--text-hi);font-size:11.5px;padding:6px 4px;font-family:'Inter',sans-serif;
 }
+
+.preset-wrap{margin-bottom:10px;}
+.preset-cat{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;overflow:hidden;}
+.preset-cat summary{
+  cursor:pointer;padding:6px 8px;font-size:11.5px;color:var(--text-lo);background:var(--navy-2);
+  display:flex;justify-content:space-between;align-items:center;list-style:none;
+}
+.preset-cat summary::-webkit-details-marker{display:none;}
+.preset-cat summary b{color:var(--text-hi);font-weight:600;font-family:'JetBrains Mono',monospace;}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px;}
+.preset-btn{
+  font-size:11.5px;background:var(--navy-0);color:var(--text-hi);border:1px solid var(--border);
+  border-radius:4px;padding:6px 4px;cursor:pointer;text-align:center;
+}
+.preset-btn:hover{border-color:var(--cyan-dim);color:var(--cyan);}
 
 .wire-item{background:var(--navy-2);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;margin-bottom:8px;}
 .wire-item .row1{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px;}
@@ -232,6 +248,8 @@ canvas{display:block;}
     <button class="btn" id="zoomOut">縮小 −</button>
     <button class="btn" id="zoomIn">拡大 ＋</button>
     <div class="sep"></div>
+    <button class="btn" id="rotatePdf">⟳ 90°回転</button>
+    <div class="sep"></div>
     <button class="btn" id="undoBtn" title="元に戻す (Ctrl+Z)">↶ 戻す</button>
     <button class="btn" id="redoBtn" title="やり直す (Ctrl+Y)">↷ 進む</button>
     <div class="sep"></div>
@@ -255,6 +273,7 @@ canvas{display:block;}
         <canvas id="pdfCanvas"></canvas>
         <canvas id="overlay"></canvas>
       </div>
+      <canvas id="minimap" style="display:none;"></canvas>
     </div>
 
     <div class="side">
@@ -263,6 +282,18 @@ canvas{display:block;}
         <div class="scale-row"><span>横 (X)</span><b id="scaleHVal">未設定</b></div>
         <div class="scale-row"><span>縦 (Y)</span><b id="scaleVVal">未設定</b></div>
         <div class="small-note">2点クリック→実寸入力で算出。斜め配線は縦横比から自動補間します。</div>
+        <div class="scale-row" style="margin-top:8px;">
+          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="gridShow"> グリッド表示</label>
+          <select id="gridSize">
+            <option value="910">910mm</option>
+            <option value="455">455mm</option>
+            <option value="100">100mm</option>
+            <option value="50">50mm</option>
+          </select>
+        </div>
+        <div class="scale-row">
+          <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="gridSnap"> クリックをグリッドに吸着</label>
+        </div>
       </div>
 
       <div class="panel">
@@ -277,12 +308,13 @@ canvas{display:block;}
 
       <div class="panel">
         <h3>部品カウント <span class="small-note" id="partTotal">計 0</span></h3>
+        <div class="preset-wrap" id="presetWrap"></div>
         <div id="partList"></div>
         <div class="add-row">
-          <input type="text" id="newPartName" placeholder="部品名 (例: コンセント)">
+          <input type="text" id="newPartName" placeholder="部品名 (自由入力、例: 分電盤)">
           <button class="btn copper" id="addPart">＋追加</button>
         </div>
-        <div class="small-note" style="margin-top:8px;">部品を選択→図面上をクリックでカウント。ハイライト済み箇所を再クリックで取消。回路番号/備考は各行の下欄に入力できます。</div>
+        <div class="small-note" style="margin-top:8px;">上のプリセットをクリックするか自由入力で部品を追加→選択して図面上をクリックでカウント。ハイライト済み箇所を再クリックで取消。回路番号/備考は各行の下欄に入力できます。</div>
       </div>
 
       <div class="panel">
@@ -293,6 +325,7 @@ canvas{display:block;}
 
       <div class="panel">
         <h3>積算集計 <span class="small-note">ESTIMATE</span></h3>
+        <div class="scale-row"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="visibleOnlyAgg"> 可視レイヤーのみ集計</label></div>
         <div class="scale-row"><span>材料費計</span><b id="sumMat">¥0</b></div>
         <div class="scale-row"><span>施工費(人工代)計</span><b id="sumLabor">¥0</b></div>
         <div class="scale-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;"><span>総合計</span><b id="sumTotal" style="color:var(--ok);">¥0</b></div>
@@ -325,6 +358,8 @@ canvas{display:block;}
     <button class="btn danger" id="wireCancelBtn">✕ 取消</button>
     <button class="btn copper" id="wireDoneBtn">✓ この配線を確定</button>
   </div>
+
+  <datalist id="cableSpecList"></datalist>
 
   <div class="status-bar">
     <span>モード: <span class="mode-tag" id="statusMode">なし</span></span>
@@ -424,6 +459,16 @@ const WIRE_TYPES = [
 ];
 function wireTypeInfo(id){ return WIRE_TYPES.find(w=>w.id===id) || WIRE_TYPES[0]; }
 
+const SYMBOL_PRESETS = [
+  {cat:'照明', items:['一般照明','ダウンライト','蛍光灯','シーリングライト','引掛シーリング','ペンダント']},
+  {cat:'スイッチ', items:['単極スイッチ','3路スイッチ','4路スイッチ','調光スイッチ','自動点滅器']},
+  {cat:'コンセント', items:['一般コンセント','防水コンセント','接地極付コンセント','200Vコンセント']},
+  {cat:'弱電・通信', items:['TV端子','LAN','電話']},
+  {cat:'その他', items:['換気扇','火災感知器(煙)']},
+];
+const CABLE_PRESETS = ['VVF1.6×2C','VVF1.6×3C','VVF2.0×2C','VVF2.0×3C','IV1.6(EM-IE)','CVVS1.6×2C'];
+const GRID_SIZES = {910:'910mm',455:'455mm',100:'100mm',50:'50mm'};
+
 function defaultLayers(){
   return [
     {id:'ly_light', name:'照明回路',   color:'#4fd1e8', visible:true, locked:false},
@@ -435,7 +480,7 @@ function defaultLayers(){
 
 // ---------- state ----------
 const state = {
-  pdfDoc:null, pageNum:1, numPages:1, zoom:1.3,
+  pdfDoc:null, pageNum:1, numPages:1, zoom:1.3, rotation:0,
   scaleXmmPerPx:null, scaleYmmPerPx:null,
   mode:'idle', // idle | calibH | calibV | count | wire
   calibPoints:[],
@@ -447,6 +492,8 @@ const state = {
   currentWirePoints:[],
   nextColorIdx:0,
   undoStack:[], redoStack:[],
+  gridShow:false, gridSize:910, gridSnap:false,
+  visibleOnlyAgg:false,
 };
 
 const els = {
@@ -454,6 +501,8 @@ const els = {
   pdfCanvas:document.getElementById('pdfCanvas'),
   overlay:document.getElementById('overlay'),
   canvasStack:document.getElementById('canvasStack'),
+  canvasWrap:document.getElementById('canvasWrap'),
+  minimap:document.getElementById('minimap'),
   emptyHint:document.getElementById('emptyHint'),
   mFile:document.getElementById('mFile'), mPage:document.getElementById('mPage'),
   mScaleH:document.getElementById('mScaleH'), mScaleV:document.getElementById('mScaleV'),
@@ -479,10 +528,11 @@ function wireCost(w){
   const labor = len * (Number(w.unitPriceLabor)||0);
   return {mat, labor, total: mat+labor};
 }
+function isCounted(layerId){ return !state.visibleOnlyAgg || getLayer(layerId).visible; }
 function refreshEstimateSummary(){
   let mat=0, labor=0;
-  state.parts.forEach(p=>{ const c=partCost(p); mat+=c.mat; labor+=c.labor; });
-  state.wires.forEach(w=>{ const c=wireCost(w); mat+=c.mat; labor+=c.labor; });
+  state.parts.forEach(p=>{ if(!isCounted(p.layerId)) return; const c=partCost(p); mat+=c.mat; labor+=c.labor; });
+  state.wires.forEach(w=>{ if(!isCounted(w.layerId)) return; const c=wireCost(w); mat+=c.mat; labor+=c.labor; });
   document.getElementById('sumMat').textContent = '¥'+Math.round(mat).toLocaleString();
   document.getElementById('sumLabor').textContent = '¥'+Math.round(labor).toLocaleString();
   document.getElementById('sumTotal').textContent = '¥'+Math.round(mat+labor).toLocaleString();
@@ -535,7 +585,7 @@ els.fileInput.addEventListener('change', async (e)=>{
 
 async function renderPage(){
   const page = await state.pdfDoc.getPage(state.pageNum);
-  const viewport = page.getViewport({scale:state.zoom});
+  const viewport = page.getViewport({scale:state.zoom, rotation:state.rotation});
   els.pdfCanvas.width = viewport.width; els.pdfCanvas.height = viewport.height;
   els.overlay.width = viewport.width; els.overlay.height = viewport.height;
   els.canvasStack.style.width = viewport.width+'px';
@@ -543,11 +593,18 @@ async function renderPage(){
   await page.render({canvasContext:pctx, viewport}).promise;
   els.mPage.textContent = state.pageNum+' / '+state.numPages;
   redrawOverlay();
+  updateMinimap();
 }
 document.getElementById('prevPage').onclick = ()=>{ if(state.pdfDoc && state.pageNum>1){state.pageNum--; renderPage();} };
 document.getElementById('nextPage').onclick = ()=>{ if(state.pdfDoc && state.pageNum<state.numPages){state.pageNum++; renderPage();} };
 document.getElementById('zoomIn').onclick = ()=>{ if(state.pdfDoc){state.zoom=Math.min(state.zoom*1.2,5); renderPage();} };
 document.getElementById('zoomOut').onclick = ()=>{ if(state.pdfDoc){state.zoom=Math.max(state.zoom/1.2,0.4); renderPage();} };
+document.getElementById('rotatePdf').onclick = ()=>{
+  if(!state.pdfDoc) return;
+  state.rotation = (state.rotation+90)%360;
+  els.statusRight.textContent = 'PDFを'+state.rotation+'°に回転しました';
+  renderPage();
+};
 
 // ---------- mode switching ----------
 function setMode(m){
@@ -576,9 +633,38 @@ document.getElementById('modeCount').onclick = ()=>setMode('count');
 document.getElementById('modeWire').onclick = ()=>setMode('wire');
 document.getElementById('modeIdle').onclick = ()=>setMode('idle');
 
+// ---------- grid ----------
+const PT_PER_MM = 72/25.4;
+function gridStepPx(){ return state.gridSize * PT_PER_MM * state.zoom; }
+function drawGrid(){
+  if(!state.gridShow || !els.overlay.width) return;
+  const step = gridStepPx();
+  if(step<4) return;
+  octx.save();
+  octx.strokeStyle = 'rgba(79,209,232,0.18)';
+  octx.lineWidth = 1;
+  for(let x=0; x<=els.overlay.width; x+=step){
+    octx.beginPath(); octx.moveTo(x+0.5,0); octx.lineTo(x+0.5,els.overlay.height); octx.stroke();
+  }
+  for(let y=0; y<=els.overlay.height; y+=step){
+    octx.beginPath(); octx.moveTo(0,y+0.5); octx.lineTo(els.overlay.width,y+0.5); octx.stroke();
+  }
+  octx.restore();
+}
+function snapPoint(pt){
+  if(!state.gridSnap) return pt;
+  const step = gridStepPx();
+  if(step<1) return pt;
+  return {x:Math.round(pt.x/step)*step, y:Math.round(pt.y/step)*step};
+}
+document.getElementById('gridShow').onchange = (e)=>{ state.gridShow=e.target.checked; redrawOverlay(); };
+document.getElementById('gridSize').onchange = (e)=>{ state.gridSize=Number(e.target.value); redrawOverlay(); };
+document.getElementById('gridSnap').onchange = (e)=>{ state.gridSnap=e.target.checked; };
+
 // ---------- overlay drawing ----------
 function redrawOverlay(){
   octx.clearRect(0,0,els.overlay.width, els.overlay.height);
+  drawGrid();
   // part markers (skip hidden layers)
   state.parts.forEach(p=>{
     const layer = getLayer(p.layerId);
@@ -629,8 +715,11 @@ function drawPolyline(pts,color,width,dash){
 // ---------- click handling ----------
 els.overlay.addEventListener('click',(e)=>{
   const rect = els.overlay.getBoundingClientRect();
-  const x = (e.clientX-rect.left) * (els.overlay.width/rect.width);
-  const y = (e.clientY-rect.top) * (els.overlay.height/rect.height);
+  let x = (e.clientX-rect.left) * (els.overlay.width/rect.width);
+  let y = (e.clientY-rect.top) * (els.overlay.height/rect.height);
+  if(state.mode==='count' || state.mode==='wire'){
+    const snapped = snapPoint({x,y}); x=snapped.x; y=snapped.y;
+  }
 
   if(state.mode==='calibH' || state.mode==='calibV'){
     state.calibPoints.push({x,y});
@@ -767,19 +856,43 @@ function addPart(){
   const input = document.getElementById('newPartName');
   const name = input.value.trim();
   if(!name) return;
+  addPartWithName(name);
+  input.value='';
+}
+function addPartWithName(name){
+  const existing = state.parts.find(p=>p.name===name && p.layerId===state.currentLayerId);
+  if(existing){
+    state.selectedPartId = existing.id;
+    renderParts();
+    setMode('count');
+    return;
+  }
   pushUndo();
   const id = 'p'+Date.now();
   const color = PALETTE[state.nextColorIdx % PALETTE.length]; state.nextColorIdx++;
   state.parts.push({id,name,color,layerId:state.currentLayerId,circuitNo:'',note:'',markers:[]});
   state.selectedPartId = id;
-  input.value='';
   renderParts();
+  setMode('count');
+}
+function buildPresetPalette(){
+  const wrap = document.getElementById('presetWrap');
+  wrap.innerHTML = SYMBOL_PRESETS.map(group=>`
+    <details class="preset-cat">
+      <summary><span>${group.cat}</span><b>${group.items.length}</b></summary>
+      <div class="preset-grid">
+        ${group.items.map(name=>`<button type="button" class="preset-btn" data-name="${name}">${name}</button>`).join('')}
+      </div>
+    </details>`).join('');
+  wrap.querySelectorAll('.preset-btn').forEach(btn=>{
+    btn.onclick = ()=> addPartWithName(btn.dataset.name);
+  });
 }
 function renderParts(){
   els.partList.innerHTML='';
   let total=0;
   state.parts.forEach(p=>{
-    total += p.markers.length;
+    if(isCounted(p.layerId)) total += p.markers.length;
     const layer = getLayer(p.layerId);
     const row = document.createElement('div');
     row.className = 'part-row'+(p.id===state.selectedPartId?' selected':'');
@@ -843,7 +956,7 @@ function renderWires(){
   state.wires.forEach(w=>{
     const layer = getLayer(w.layerId);
     const total = w.baseLenM + Number(w.heightM||0) + Number(w.extraM||0);
-    grandTotal += total;
+    if(isCounted(w.layerId)) grandTotal += total;
     const wireTypeOptions = WIRE_TYPES.map(t=>`<option value="${t.id}" ${t.id===w.wireType?'selected':''}>${t.label}</option>`).join('');
     const item = document.createElement('div');
     item.className='wire-item';
@@ -859,7 +972,7 @@ function renderWires(){
         <label>余長(m)<input type="number" step="0.1" value="${w.extraM}" class="extra"></label>
       </div>
       <div class="wire-fields2">
-        <label>規格(ケーブル種類)<input value="${w.cableSpec||''}" class="cableSpec" placeholder="例: VVF1.6×2C"></label>
+        <label>規格(ケーブル種類)<input value="${w.cableSpec||''}" class="cableSpec" list="cableSpecList" placeholder="例: VVF1.6×2C"></label>
         <label>回路番号<input value="${w.circuitNo||''}" class="circuitNo"></label>
       </div>
       <div class="wire-fields2">
@@ -981,7 +1094,55 @@ document.getElementById('exportXlsx').onclick = ()=>{
   XLSX.writeFile(wb, '拾い出し積算.xlsx');
 };
 
+// ---------- cable spec presets ----------
+function buildCableSpecDatalist(){
+  const list = document.getElementById('cableSpecList');
+  list.innerHTML = CABLE_PRESETS.map(v=>`<option value="${v}"></option>`).join('');
+}
+
+// ---------- visible-layer-only aggregation ----------
+document.getElementById('visibleOnlyAgg').onchange = (e)=>{
+  state.visibleOnlyAgg = e.target.checked;
+  renderParts(); renderWires(); refreshEstimateSummary();
+};
+
+// ---------- minimap ----------
+const mctx = els.minimap.getContext('2d');
+let minimapRAF = null;
+function updateMinimap(){
+  if(!state.pdfDoc || !els.pdfCanvas.width){ els.minimap.style.display='none'; return; }
+  const maxW = 170, maxH = 170;
+  const scale = Math.min(maxW/els.pdfCanvas.width, maxH/els.pdfCanvas.height);
+  const mw = Math.max(1,Math.round(els.pdfCanvas.width*scale)), mh = Math.max(1,Math.round(els.pdfCanvas.height*scale));
+  els.minimap.width = mw; els.minimap.height = mh;
+  els.minimap.style.display = 'block';
+  positionMinimap();
+}
+function positionMinimap(){
+  if(!state.pdfDoc || els.minimap.style.display==='none' || !els.minimap.width) return;
+  const wrap = els.canvasWrap;
+  const mw = els.minimap.width, mh = els.minimap.height;
+  els.minimap.style.left = Math.max(4,(wrap.scrollLeft + wrap.clientWidth - mw - 14))+'px';
+  els.minimap.style.top = Math.max(4,(wrap.scrollTop + wrap.clientHeight - mh - 14))+'px';
+  mctx.clearRect(0,0,mw,mh);
+  mctx.drawImage(els.pdfCanvas,0,0,mw,mh);
+  const sx = mw / els.pdfCanvas.width, sy = mh / els.pdfCanvas.height;
+  const padLeft = els.canvasStack.offsetLeft, padTop = els.canvasStack.offsetTop;
+  const vx = Math.max(0,(wrap.scrollLeft - padLeft)) * sx;
+  const vy = Math.max(0,(wrap.scrollTop - padTop)) * sy;
+  const vw = Math.min(els.pdfCanvas.width, wrap.clientWidth) * sx;
+  const vh = Math.min(els.pdfCanvas.height, wrap.clientHeight) * sy;
+  mctx.strokeStyle = '#4fd1e8'; mctx.lineWidth = 2;
+  mctx.strokeRect(vx+1, vy+1, Math.max(2,vw-2), Math.max(2,vh-2));
+}
+els.canvasWrap.addEventListener('scroll', ()=>{
+  if(minimapRAF) return;
+  minimapRAF = requestAnimationFrame(()=>{ positionMinimap(); minimapRAF=null; });
+});
+window.addEventListener('resize', ()=>{ positionMinimap(); });
+
 setMode('idle');
+buildPresetPalette(); buildCableSpecDatalist();
 renderLayers(); renderParts(); renderWires(); updateScaleDisplay();
 </script>
 </body>
