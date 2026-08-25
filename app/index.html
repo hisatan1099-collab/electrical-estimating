@@ -148,6 +148,17 @@ canvas{display:block;}
   color:var(--text-hi);font-size:11.5px;padding:6px 4px;font-family:'Inter',sans-serif;
 }
 
+.ctx-menu{
+  position:fixed;z-index:60;background:var(--navy-2);border:1px solid var(--copper);border-radius:var(--radius);
+  padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.5);min-width:150px;
+}
+.ctx-item{
+  padding:8px 10px;font-size:12.5px;color:var(--text-hi);cursor:pointer;border-radius:4px;
+  font-family:'Inter',sans-serif;
+}
+.ctx-item:hover{background:var(--navy-0);color:var(--cyan);}
+.ctx-item.danger:hover{color:var(--danger);}
+
 .tabstrip{display:flex;gap:4px;margin-bottom:10px;}
 .tab-btn{
   flex:1;background:var(--navy-2);color:var(--text-lo);border:1px solid var(--border);
@@ -270,7 +281,6 @@ canvas{display:block;}
     <button class="btn" id="modeCount">✓ 記号カウント</button>
     <button class="btn" id="modeWire">〰 配線長を測る</button>
     <button class="btn" id="modeSelect">🖱 選択/移動</button>
-    <button class="btn" id="modeIdle">✋ 選択解除</button>
     <div class="sep"></div>
     <span class="small-note" id="modeHint">図面を読み込んでください</span>
   </div>
@@ -489,6 +499,63 @@ const SYMBOL_PRESETS = [
 const CABLE_PRESETS = ['VVF1.6×2C','VVF1.6×3C','VVF2.0×2C','VVF2.0×3C','IV1.6(EM-IE)','CVVS1.6×2C'];
 const GRID_SIZES = {910:'910mm',455:'455mm',100:'100mm',50:'50mm'};
 
+// ---------- symbol glyphs (simplified JIS-style marks drawn on the marker) ----------
+function drawFixtureGlyph(ctx,x,y,color,type){
+  ctx.save();
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.5;
+  if(type==='rect'){ ctx.strokeRect(x-7,y-2.5,14,5); }
+  else if(type==='cross'){
+    ctx.beginPath(); ctx.moveTo(x-5,y); ctx.lineTo(x+5,y); ctx.moveTo(x,y-5); ctx.lineTo(x,y+5); ctx.stroke();
+  }
+  else if(type==='ticks'){
+    ctx.beginPath(); ctx.moveTo(x-4,y-3); ctx.lineTo(x+4,y-3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x-4,y+3); ctx.lineTo(x+4,y+3); ctx.stroke();
+  }
+  else if(type==='stem'){
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+9); ctx.stroke();
+  }
+  else if(type==='fan'){
+    ctx.beginPath();
+    ctx.moveTo(x-5,y-5); ctx.lineTo(x+5,y+5);
+    ctx.moveTo(x+5,y-5); ctx.lineTo(x-5,y+5);
+    ctx.stroke();
+  }
+  else if(type==='filled'){
+    ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawTinyLabel(ctx,x,y,color,text){
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = 'bold 8px "JetBrains Mono",monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y+0.5);
+  ctx.restore();
+}
+const SYMBOL_GLYPH = {
+  'ダウンライト': (ctx,x,y,c)=>drawFixtureGlyph(ctx,x,y,c,'filled'),
+  '蛍光灯': (ctx,x,y,c)=>drawFixtureGlyph(ctx,x,y,c,'rect'),
+  'シーリングライト': (ctx,x,y,c)=>drawFixtureGlyph(ctx,x,y,c,'cross'),
+  '引掛シーリング': (ctx,x,y,c)=>drawFixtureGlyph(ctx,x,y,c,'ticks'),
+  'ペンダント': (ctx,x,y,c)=>drawFixtureGlyph(ctx,x,y,c,'stem'),
+  '換気扇': (ctx,x,y,c)=>drawFixtureGlyph(ctx,x,y,c,'fan'),
+  '単極スイッチ': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'S'),
+  '3路スイッチ': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'S3'),
+  '4路スイッチ': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'S4'),
+  '調光スイッチ': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'SL'),
+  '自動点滅器': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'SA'),
+  '一般コンセント': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'C'),
+  '防水コンセント': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'WP'),
+  '接地極付コンセント': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'E'),
+  '200Vコンセント': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'200'),
+  'TV端子': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'TV'),
+  'LAN': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'LAN'),
+  '電話': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'TEL'),
+  '火災感知器(煙)': (ctx,x,y,c)=>drawTinyLabel(ctx,x,y,c,'煙'),
+};
+
 function defaultLayers(){
   return [
     {id:'ly_light', name:'照明回路',   color:'#4fd1e8', visible:true, locked:false},
@@ -502,7 +569,7 @@ function defaultLayers(){
 const state = {
   pdfDoc:null, pageNum:1, numPages:1, zoom:1.3, rotation:0,
   scaleXmmPerPx:null, scaleYmmPerPx:null,
-  mode:'idle', // idle | calibH | calibV | count | wire
+  mode:'select', // select | calibH | calibV | count | wire
   calibPoints:[],
   layers:defaultLayers(),
   currentLayerId:'ly_other',
@@ -543,6 +610,15 @@ function partCost(p){
   const mat = p.markers.length * (Number(p.unitPriceMat)||0);
   const labor = p.markers.length * (Number(p.unitPriceLabor)||0);
   return {mat, labor, total: mat+labor};
+}
+function recomputeWireLength(w){
+  let mmLen = 0;
+  for(let i=1;i<w.points.length;i++){
+    const dx = (w.points[i].x-w.points[i-1].x) * (state.scaleXmmPerPx || state.scaleYmmPerPx || 1);
+    const dy = (w.points[i].y-w.points[i-1].y) * (state.scaleYmmPerPx || state.scaleXmmPerPx || 1);
+    mmLen += Math.hypot(dx,dy);
+  }
+  w.baseLenM = mmLen/1000;
 }
 function wireCost(w){
   const len = w.baseLenM + Number(w.heightM||0) + Number(w.extraM||0);
@@ -658,15 +734,14 @@ function setMode(m){
   const map = {calibH:'modeCalibH', calibV:'modeCalibV', count:'modeCount', wire:'modeWire', select:'modeSelect'};
   if(map[m]) document.getElementById(map[m]).classList.add('active');
   const hints = {
-    idle:'クリック待機',
     calibH:'既知寸法の2点をクリックしてください(横方向)',
     calibV:'既知寸法の2点をクリックしてください(縦方向)',
     count:state.selectedPartId ? '図面をクリックしてカウント / 印を再クリックで取消' : '先に左の部品を選択してください',
     wire:'起点をクリック→曲がり角→終点、下のバーで確定',
-    select:'クリックで選択(Shiftで追加)、ドラッグで矩形選択。選択後はドラッグで移動、Rで90度回転、矢印キーで微調整、Deleteで削除',
+    select:'クリックで選択(Shiftで追加)、ドラッグで矩形選択・移動。右クリックでメニュー。Rで90度回転、矢印キーで微調整、Deleteで削除',
   };
   els.modeHint.textContent = hints[m] || '';
-  els.statusMode.textContent = ({idle:'なし',calibH:'横縮尺設定',calibV:'縦縮尺設定',count:'記号カウント',wire:'配線長測定',select:'選択/移動'})[m];
+  els.statusMode.textContent = ({calibH:'横縮尺設定',calibV:'縦縮尺設定',count:'記号カウント',wire:'配線長測定',select:'選択/移動'})[m];
   els.statusRight.textContent = hints[m] || '';
   document.getElementById('wireConfirmBar').classList.toggle('show', m==='wire');
   redrawOverlay();
@@ -676,7 +751,6 @@ document.getElementById('modeCalibV').onclick = ()=>setMode('calibV');
 document.getElementById('modeCount').onclick = ()=>setMode('count');
 document.getElementById('modeWire').onclick = ()=>setMode('wire');
 document.getElementById('modeSelect').onclick = ()=>setMode('select');
-document.getElementById('modeIdle').onclick = ()=>setMode('idle');
 
 // ---------- grid ----------
 const PT_PER_MM = 72/25.4;
@@ -733,6 +807,9 @@ function redrawOverlay(){
       octx.moveTo(m.x,m.y);
       octx.lineTo(m.x+Math.cos(rot)*13, m.y+Math.sin(rot)*13);
       octx.strokeStyle = p.color; octx.lineWidth=2; octx.stroke();
+      // JIS-style glyph for preset symbol types (custom free-text parts keep the plain dot)
+      const glyph = SYMBOL_GLYPH[p.name];
+      if(glyph) glyph(octx, m.x, m.y, p.color);
       if(selected){
         octx.save();
         octx.setLineDash([4,3]);
@@ -812,7 +889,8 @@ els.overlay.addEventListener('click',(e)=>{
     if(layer.locked){ alert('このレイヤー「'+layer.name+'」はロック中です。解除してから編集してください。'); return; }
     pushUndo();
     const hitIdx = part.markers.findIndex(m=>Math.hypot(m.x-x,m.y-y)<10);
-    if(hitIdx>=0){ part.markers.splice(hitIdx,1); } else { part.markers.push({x,y,rot:0}); }
+    if(hitIdx>=0){ part.markers.splice(hitIdx,1); shiftAnchorsAfterMarkerRemoval(part.id, hitIdx); }
+    else { part.markers.push({x,y,rot:0}); }
     renderParts(); redrawOverlay();
     return;
   }
@@ -872,6 +950,49 @@ function findWireAt(x,y){
   }
   return null;
 }
+// ---------- part<->wire anchor linking ----------
+function nearestMarkerWithin(x,y,maxDist){
+  let best=null, bestDist=maxDist;
+  state.parts.forEach(p=>{
+    if(!getLayer(p.layerId).visible) return;
+    p.markers.forEach((m,idx)=>{
+      const d = Math.hypot(m.x-x,m.y-y);
+      if(d<bestDist){ bestDist=d; best={partId:p.id, idx}; }
+    });
+  });
+  return best;
+}
+function shiftAnchorsAfterMarkerRemoval(partId, removedIdx){
+  state.wires.forEach(w=>{
+    ['startAnchor','endAnchor'].forEach(key=>{
+      const a = w[key];
+      if(a && a.partId===partId){
+        if(a.idx===removedIdx) w[key] = null;
+        else if(a.idx>removedIdx) a.idx -= 1;
+      }
+    });
+  });
+}
+function clearAnchorsForPart(partId){
+  state.wires.forEach(w=>{
+    ['startAnchor','endAnchor'].forEach(key=>{
+      if(w[key] && w[key].partId===partId) w[key]=null;
+    });
+  });
+}
+function moveAnchoredWireEndpoints(partId, idx, dx, dy){
+  state.wires.forEach(w=>{
+    let touched = false;
+    if(w.startAnchor && w.startAnchor.partId===partId && w.startAnchor.idx===idx){
+      w.points[0].x += dx; w.points[0].y += dy; touched = true;
+    }
+    if(w.endAnchor && w.endAnchor.partId===partId && w.endAnchor.idx===idx){
+      const li = w.points.length-1;
+      w.points[li].x += dx; w.points[li].y += dy; touched = true;
+    }
+    if(touched) recomputeWireLength(w);
+  });
+}
 function anySelectedOnLockedLayer(){
   for(const s of state.selection.markers){
     const p = state.parts.find(pp=>pp.id===s.partId);
@@ -882,6 +1003,29 @@ function anySelectedOnLockedLayer(){
     if(w && getLayer(w.layerId).locked) return true;
   }
   return false;
+}
+function rotateSelection(){
+  if(!state.selection.markers.length) return;
+  if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから回転してください。'); return; }
+  pushUndo();
+  state.selection.markers.forEach(s=>{
+    const p = state.parts.find(pp=>pp.id===s.partId);
+    const m = p.markers[s.idx];
+    m.rot = ((m.rot||0)+90)%360;
+  });
+  renderPropertyPanel(); redrawOverlay();
+}
+function deleteSelection(){
+  if(!hasSelection()) return;
+  if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから削除してください。'); return; }
+  pushUndo();
+  state.selection.markers.slice().sort((a,b)=>b.idx-a.idx).forEach(s=>{
+    const p = state.parts.find(pp=>pp.id===s.partId);
+    if(p){ p.markers.splice(s.idx,1); shiftAnchorsAfterMarkerRemoval(s.partId, s.idx); }
+  });
+  state.wires = state.wires.filter(w=>!isWireSelected(w.id));
+  clearSelection();
+  renderParts(); renderWires(); renderPropertyPanel(); redrawOverlay();
 }
 
 // ---------- select mode: mouse interaction ----------
@@ -915,6 +1059,18 @@ els.overlay.addEventListener('mousedown',(e)=>{
     return;
   }
 
+  const startAnchoredEndpoints = [];
+  state.selection.markers.forEach(s=>{
+    state.wires.forEach(w=>{
+      if(w.startAnchor && w.startAnchor.partId===s.partId && w.startAnchor.idx===s.idx){
+        startAnchoredEndpoints.push({wireId:w.id, end:'start', partId:s.partId, idx:s.idx, origX:w.points[0].x, origY:w.points[0].y});
+      }
+      if(w.endAnchor && w.endAnchor.partId===s.partId && w.endAnchor.idx===s.idx){
+        const li = w.points.length-1;
+        startAnchoredEndpoints.push({wireId:w.id, end:'end', partId:s.partId, idx:s.idx, origX:w.points[li].x, origY:w.points[li].y});
+      }
+    });
+  });
   state.dragState = {
     origin:{x,y}, moved:false,
     startMarkers: state.selection.markers.map(s=>{
@@ -926,6 +1082,7 @@ els.overlay.addEventListener('mousedown',(e)=>{
       const w = state.wires.find(ww=>ww.id===id);
       return {id, points: w.points.map(pt=>({x:pt.x,y:pt.y}))};
     }),
+    startAnchoredEndpoints,
   };
   renderPropertyPanel(); redrawOverlay();
 });
@@ -945,11 +1102,24 @@ document.addEventListener('mousemove',(e)=>{
         const p = state.parts.find(pp=>pp.id===sm.partId);
         const m = p.markers[sm.idx];
         const snapped = snapPoint({x:sm.x+dx, y:sm.y+dy});
+        const appliedDx = snapped.x-sm.x, appliedDy = snapped.y-sm.y;
         m.x = snapped.x; m.y = snapped.y;
+        state.dragState.startAnchoredEndpoints
+          .filter(a=>a.partId===sm.partId && a.idx===sm.idx)
+          .forEach(a=>{
+            const w = state.wires.find(ww=>ww.id===a.wireId);
+            if(!w) return;
+            const pt = a.end==='start' ? w.points[0] : w.points[w.points.length-1];
+            pt.x = a.origX+appliedDx; pt.y = a.origY+appliedDy;
+            recomputeWireLength(w);
+          });
       });
       state.dragState.startWires.forEach(sw=>{
         const w = state.wires.find(ww=>ww.id===sw.id);
         w.points = sw.points.map(pt=>({x:pt.x+dx, y:pt.y+dy}));
+        // moved directly (not via its anchored part), so it's no longer pinned in place
+        w.startAnchor = null; w.endAnchor = null;
+        recomputeWireLength(w);
       });
       redrawOverlay();
     }
@@ -964,7 +1134,7 @@ document.addEventListener('mouseup',()=>{
   if(state.mode!=='select') return;
   if(state.dragState){
     state.dragState = null;
-    renderParts(); renderPropertyPanel();
+    renderParts(); renderWires(); renderPropertyPanel();
     return;
   }
   if(state.rectSelectStart){
@@ -988,6 +1158,46 @@ document.addEventListener('mouseup',()=>{
   }
 });
 
+// ---------- select mode: right-click context menu ----------
+function closeContextMenu(){
+  const existing = document.getElementById('ctxMenu');
+  if(existing) existing.remove();
+}
+function showContextMenu(clientX, clientY){
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'ctx-menu';
+  menu.id = 'ctxMenu';
+  menu.style.left = Math.min(clientX, window.innerWidth-160)+'px';
+  menu.style.top = Math.min(clientY, window.innerHeight-90)+'px';
+  let html = '';
+  if(state.selection.markers.length) html += `<div class="ctx-item" id="ctxRotate">🔁 90度回転 (R)</div>`;
+  html += `<div class="ctx-item danger" id="ctxDelete">🗑 削除 (Delete)</div>`;
+  menu.innerHTML = html;
+  document.body.appendChild(menu);
+  const rotateItem = document.getElementById('ctxRotate');
+  if(rotateItem) rotateItem.onclick = ()=>{ rotateSelection(); closeContextMenu(); };
+  document.getElementById('ctxDelete').onclick = ()=>{ deleteSelection(); closeContextMenu(); };
+  setTimeout(()=>{ document.addEventListener('click', closeContextMenu, {once:true}); }, 0);
+}
+els.overlay.addEventListener('contextmenu',(e)=>{
+  if(state.mode!=='select'){ return; }
+  e.preventDefault();
+  const {x,y} = overlayPointFromEvent(e);
+  const hitMarker = findMarkerAt(x,y);
+  const hitWire = !hitMarker ? findWireAt(x,y) : null;
+  if(hitMarker && !isMarkerSelected(hitMarker.partId, hitMarker.idx)){
+    state.selection = {markers:[hitMarker], wireIds:[]};
+  } else if(hitWire && !isWireSelected(hitWire.id)){
+    state.selection = {markers:[], wireIds:[hitWire.id]};
+  } else if(!hitMarker && !hitWire && !hasSelection()){
+    return;
+  }
+  renderPropertyPanel(); redrawOverlay();
+  showContextMenu(e.clientX, e.clientY);
+});
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeContextMenu(); });
+
 // ---------- select mode: keyboard (rotate / nudge / delete) ----------
 document.addEventListener('keydown',(e)=>{
   if(state.mode!=='select' || !hasSelection()) return;
@@ -996,28 +1206,13 @@ document.addEventListener('keydown',(e)=>{
 
   if(e.key==='Delete' || e.key==='Backspace'){
     e.preventDefault();
-    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから削除してください。'); return; }
-    pushUndo();
-    state.selection.markers.slice().sort((a,b)=>b.idx-a.idx).forEach(s=>{
-      const p = state.parts.find(pp=>pp.id===s.partId);
-      if(p) p.markers.splice(s.idx,1);
-    });
-    state.wires = state.wires.filter(w=>!isWireSelected(w.id));
-    clearSelection();
-    renderParts(); renderWires(); renderPropertyPanel(); redrawOverlay();
+    deleteSelection();
     return;
   }
   if(e.key==='r' || e.key==='R'){
     if(!state.selection.markers.length) return;
     e.preventDefault();
-    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから回転してください。'); return; }
-    pushUndo();
-    state.selection.markers.forEach(s=>{
-      const p = state.parts.find(pp=>pp.id===s.partId);
-      const m = p.markers[s.idx];
-      m.rot = ((m.rot||0)+90)%360;
-    });
-    renderPropertyPanel(); redrawOverlay();
+    rotateSelection();
     return;
   }
   const arrowMap = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
@@ -1032,12 +1227,15 @@ document.addEventListener('keydown',(e)=>{
       const p = state.parts.find(pp=>pp.id===s.partId);
       const m = p.markers[s.idx];
       m.x += dx; m.y += dy;
+      moveAnchoredWireEndpoints(s.partId, s.idx, dx, dy);
     });
     state.selection.wireIds.forEach(id=>{
       const w = state.wires.find(ww=>ww.id===id);
       w.points = w.points.map(pt=>({x:pt.x+dx, y:pt.y+dy}));
+      w.startAnchor = null; w.endAnchor = null;
+      recomputeWireLength(w);
     });
-    renderPropertyPanel(); redrawOverlay();
+    renderWires(); renderPropertyPanel(); redrawOverlay();
   }
 });
 document.getElementById('wireDoneBtn').onclick = ()=>{
@@ -1074,7 +1272,7 @@ function openCalibDialog(clientX,clientY){
     else { state.scaleYmmPerPx = mmPerPx; }
     updateScaleDisplay();
     cleanup();
-    setMode('idle');
+    setMode('select');
   };
   document.getElementById('calibReal').addEventListener('keydown',(ev)=>{
     if(ev.key==='Enter') document.getElementById('calibOk').click();
@@ -1207,6 +1405,7 @@ function renderParts(){
       ev.stopPropagation();
       if(layer.locked){ alert('このレイヤー「'+layer.name+'」はロック中です。'); return; }
       pushUndo();
+      clearAnchorsForPart(p.id);
       state.parts = state.parts.filter(x=>x.id!==p.id); if(state.selectedPartId===p.id) state.selectedPartId=null; renderParts(); redrawOverlay();
     };
     els.partList.appendChild(row);
@@ -1227,10 +1426,13 @@ function finalizeWire(){
   }
   pushUndo();
   const id = 'w'+Date.now();
+  const startAnchor = nearestMarkerWithin(pts[0].x, pts[0].y, 16);
+  const endAnchor = nearestMarkerWithin(pts[pts.length-1].x, pts[pts.length-1].y, 16);
   state.wires.push({
     id, name:'配線'+(state.wires.length+1), layerId:state.currentLayerId,
     wireType:'ceiling', cableSpec:'', circuitNo:'', note:'',
-    points:pts, baseLenM: mmLen/1000, heightM:0, extraM:0
+    points:pts, baseLenM: mmLen/1000, heightM:0, extraM:0,
+    startAnchor, endAnchor,
   });
   renderWires(); redrawOverlay();
 }
@@ -1423,27 +1625,8 @@ function renderPropertyPanel(){
   html += `<div class="small-note" style="margin-top:8px;">選択中はドラッグで移動、矢印キーで微調整(Shiftで大きく)できます。</div>`;
   el.innerHTML = html;
   const rotateBtn = document.getElementById('propRotateBtn');
-  if(rotateBtn) rotateBtn.onclick = ()=>{
-    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。'); return; }
-    pushUndo();
-    sel.markers.forEach(s=>{
-      const p = state.parts.find(pp=>pp.id===s.partId);
-      const m = p.markers[s.idx];
-      m.rot = ((m.rot||0)+90)%360;
-    });
-    renderPropertyPanel(); redrawOverlay();
-  };
-  document.getElementById('propDeleteBtn').onclick = ()=>{
-    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから削除してください。'); return; }
-    pushUndo();
-    sel.markers.slice().sort((a,b)=>b.idx-a.idx).forEach(s=>{
-      const p = state.parts.find(pp=>pp.id===s.partId);
-      if(p) p.markers.splice(s.idx,1);
-    });
-    state.wires = state.wires.filter(w=>!isWireSelected(w.id));
-    clearSelection();
-    renderParts(); renderWires(); renderPropertyPanel(); redrawOverlay();
-  };
+  if(rotateBtn) rotateBtn.onclick = rotateSelection;
+  document.getElementById('propDeleteBtn').onclick = deleteSelection;
 }
 
 // ---------- cable spec presets ----------
@@ -1493,7 +1676,7 @@ els.canvasWrap.addEventListener('scroll', ()=>{
 });
 window.addEventListener('resize', ()=>{ positionMinimap(); });
 
-setMode('idle');
+setMode('select');
 buildPresetPalette(); buildCableSpecDatalist();
 renderLayers(); renderParts(); renderWires(); updateScaleDisplay();
 </script>
