@@ -148,6 +148,17 @@ canvas{display:block;}
   color:var(--text-hi);font-size:11.5px;padding:6px 4px;font-family:'Inter',sans-serif;
 }
 
+.tabstrip{display:flex;gap:4px;margin-bottom:10px;}
+.tab-btn{
+  flex:1;background:var(--navy-2);color:var(--text-lo);border:1px solid var(--border);
+  border-radius:var(--radius);padding:7px 4px;font-size:11.5px;cursor:pointer;
+  font-family:'Space Grotesk',sans-serif;letter-spacing:.04em;
+}
+.tab-btn.active{background:var(--copper);color:var(--navy-0);border-color:var(--copper);}
+.prop-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;font-size:12.5px;}
+.prop-actions{display:flex;gap:6px;margin-top:8px;}
+.prop-actions .btn{flex:1;justify-content:center;padding:7px 4px;font-size:12px;}
+
 .preset-wrap{margin-bottom:10px;}
 .preset-cat{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;overflow:hidden;}
 .preset-cat summary{
@@ -258,6 +269,7 @@ canvas{display:block;}
     <div class="sep"></div>
     <button class="btn" id="modeCount">✓ 記号カウント</button>
     <button class="btn" id="modeWire">〰 配線長を測る</button>
+    <button class="btn" id="modeSelect">🖱 選択/移動</button>
     <button class="btn" id="modeIdle">✋ 選択解除</button>
     <div class="sep"></div>
     <span class="small-note" id="modeHint">図面を読み込んでください</span>
@@ -297,13 +309,21 @@ canvas{display:block;}
       </div>
 
       <div class="panel">
-        <h3>レイヤー <span class="small-note">LAYERS</span></h3>
-        <div id="layerList"></div>
-        <div class="add-row">
-          <input type="text" id="newLayerName" placeholder="レイヤー名 (例: 弱電)">
-          <button class="btn copper" id="addLayer">＋追加</button>
+        <div class="tabstrip">
+          <button class="tab-btn active" id="tabLayers">レイヤー</button>
+          <button class="tab-btn" id="tabProps">プロパティ</button>
         </div>
-        <div class="small-note" style="margin-top:8px;">クリックで「現在のレイヤー」に切替。👁で表示/非表示、🔒でロック(編集禁止)。新規の部品・配線はここで選択中のレイヤーに入ります。</div>
+        <div id="layerTabBody">
+          <div id="layerList"></div>
+          <div class="add-row">
+            <input type="text" id="newLayerName" placeholder="レイヤー名 (例: 弱電)">
+            <button class="btn copper" id="addLayer">＋追加</button>
+          </div>
+          <div class="small-note" style="margin-top:8px;">クリックで「現在のレイヤー」に切替。👁で表示/非表示、🔒でロック(編集禁止)。新規の部品・配線はここで選択中のレイヤーに入ります。</div>
+        </div>
+        <div id="propTabBody" style="display:none;">
+          <div id="propContent" class="small-note">図面上のシンボルや配線を「選択/移動」モードでクリックすると、ここで詳細を編集できます。</div>
+        </div>
       </div>
 
       <div class="panel">
@@ -494,6 +514,8 @@ const state = {
   undoStack:[], redoStack:[],
   gridShow:false, gridSize:910, gridSnap:false,
   visibleOnlyAgg:false,
+  selection:{markers:[], wireIds:[]}, // markers: [{partId, idx}]
+  dragState:null, rectSelectStart:null, rectSelectCur:null,
 };
 
 const els = {
@@ -550,7 +572,9 @@ function pushUndo(){
 function applyCore(s){
   state.parts = s.parts; state.wires = s.wires; state.layers = s.layers;
   state.currentLayerId = s.currentLayerId; state.selectedPartId = s.selectedPartId;
+  clearSelection();
   renderLayers(); renderParts(); renderWires(); redrawOverlay(); refreshEstimateSummary();
+  if(typeof renderPropertyPanel==='function') renderPropertyPanel();
 }
 function undo(){
   if(!state.undoStack.length) return;
@@ -611,8 +635,10 @@ function setMode(m){
   state.mode = m;
   state.calibPoints = [];
   state.currentWirePoints = [];
-  ['modeCalibH','modeCalibV','modeCount','modeWire'].forEach(id=>document.getElementById(id).classList.remove('active'));
-  const map = {calibH:'modeCalibH', calibV:'modeCalibV', count:'modeCount', wire:'modeWire'};
+  state.rectSelectStart = null; state.rectSelectCur = null; state.dragState = null;
+  if(m!=='select'){ state.selection = {markers:[], wireIds:[]}; renderPropertyPanel(); }
+  ['modeCalibH','modeCalibV','modeCount','modeWire','modeSelect'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  const map = {calibH:'modeCalibH', calibV:'modeCalibV', count:'modeCount', wire:'modeWire', select:'modeSelect'};
   if(map[m]) document.getElementById(map[m]).classList.add('active');
   const hints = {
     idle:'クリック待機',
@@ -620,9 +646,10 @@ function setMode(m){
     calibV:'既知寸法の2点をクリックしてください(縦方向)',
     count:state.selectedPartId ? '図面をクリックしてカウント / 印を再クリックで取消' : '先に左の部品を選択してください',
     wire:'起点をクリック→曲がり角→終点、下のバーで確定',
+    select:'クリックで選択(Shiftで追加)、ドラッグで矩形選択。選択後はドラッグで移動、Rで90度回転、矢印キーで微調整、Deleteで削除',
   };
   els.modeHint.textContent = hints[m] || '';
-  els.statusMode.textContent = ({idle:'なし',calibH:'横縮尺設定',calibV:'縦縮尺設定',count:'記号カウント',wire:'配線長測定'})[m];
+  els.statusMode.textContent = ({idle:'なし',calibH:'横縮尺設定',calibV:'縦縮尺設定',count:'記号カウント',wire:'配線長測定',select:'選択/移動'})[m];
   els.statusRight.textContent = hints[m] || '';
   document.getElementById('wireConfirmBar').classList.toggle('show', m==='wire');
   redrawOverlay();
@@ -631,6 +658,7 @@ document.getElementById('modeCalibH').onclick = ()=>setMode('calibH');
 document.getElementById('modeCalibV').onclick = ()=>setMode('calibV');
 document.getElementById('modeCount').onclick = ()=>setMode('count');
 document.getElementById('modeWire').onclick = ()=>setMode('wire');
+document.getElementById('modeSelect').onclick = ()=>setMode('select');
 document.getElementById('modeIdle').onclick = ()=>setMode('idle');
 
 // ---------- grid ----------
@@ -661,6 +689,12 @@ document.getElementById('gridShow').onchange = (e)=>{ state.gridShow=e.target.ch
 document.getElementById('gridSize').onchange = (e)=>{ state.gridSize=Number(e.target.value); redrawOverlay(); };
 document.getElementById('gridSnap').onchange = (e)=>{ state.gridSnap=e.target.checked; };
 
+// ---------- selection helpers ----------
+function isMarkerSelected(partId, idx){ return state.selection.markers.some(s=>s.partId===partId && s.idx===idx); }
+function isWireSelected(wireId){ return state.selection.wireIds.includes(wireId); }
+function hasSelection(){ return state.selection.markers.length>0 || state.selection.wireIds.length>0; }
+function clearSelection(){ state.selection = {markers:[], wireIds:[]}; }
+
 // ---------- overlay drawing ----------
 function redrawOverlay(){
   octx.clearRect(0,0,els.overlay.width, els.overlay.height);
@@ -669,12 +703,26 @@ function redrawOverlay(){
   state.parts.forEach(p=>{
     const layer = getLayer(p.layerId);
     if(!layer.visible) return;
-    p.markers.forEach(m=>{
+    p.markers.forEach((m,idx)=>{
+      const selected = isMarkerSelected(p.id, idx);
       octx.beginPath();
       octx.arc(m.x,m.y,8,0,Math.PI*2);
       octx.fillStyle = p.color+'55';
       octx.fill();
       octx.lineWidth=2; octx.strokeStyle = p.color; octx.stroke();
+      // rotation direction tick
+      const rot = ((m.rot||0) * Math.PI/180);
+      octx.beginPath();
+      octx.moveTo(m.x,m.y);
+      octx.lineTo(m.x+Math.cos(rot)*13, m.y+Math.sin(rot)*13);
+      octx.strokeStyle = p.color; octx.lineWidth=2; octx.stroke();
+      if(selected){
+        octx.save();
+        octx.setLineDash([4,3]);
+        octx.strokeStyle = '#4fd1e8'; octx.lineWidth = 2;
+        octx.beginPath(); octx.arc(m.x,m.y,13,0,Math.PI*2); octx.stroke();
+        octx.restore();
+      }
     });
   });
   // finished wires (skip hidden layers), colored & dashed by layer/type
@@ -682,6 +730,9 @@ function redrawOverlay(){
     const layer = getLayer(w.layerId);
     if(!layer.visible) return;
     const wt = wireTypeInfo(w.wireType);
+    if(isWireSelected(w.id)){
+      drawPolyline(w.points, '#4fd1e8', 5, []);
+    }
     drawPolyline(w.points, layer.color, 2, wt.dash);
   });
   // in-progress calibration
@@ -693,6 +744,16 @@ function redrawOverlay(){
   if(state.currentWirePoints.length){
     drawPolyline(state.currentWirePoints,'#f2d24b',2,[6,4]);
     drawPoints(state.currentWirePoints,'#f2d24b');
+  }
+  // rectangle-select preview
+  if(state.rectSelectStart && state.rectSelectCur){
+    const {x:x1,y:y1} = state.rectSelectStart, {x:x2,y:y2} = state.rectSelectCur;
+    octx.save();
+    octx.strokeStyle = '#4fd1e8'; octx.fillStyle = 'rgba(79,209,232,0.12)'; octx.lineWidth=1;
+    octx.setLineDash([4,3]);
+    const rx = Math.min(x1,x2), ry = Math.min(y1,y2), rw = Math.abs(x2-x1), rh = Math.abs(y2-y1);
+    octx.fillRect(rx,ry,rw,rh); octx.strokeRect(rx,ry,rw,rh);
+    octx.restore();
   }
 }
 function drawPoints(pts,color){
@@ -734,7 +795,7 @@ els.overlay.addEventListener('click',(e)=>{
     if(layer.locked){ alert('このレイヤー「'+layer.name+'」はロック中です。解除してから編集してください。'); return; }
     pushUndo();
     const hitIdx = part.markers.findIndex(m=>Math.hypot(m.x-x,m.y-y)<10);
-    if(hitIdx>=0){ part.markers.splice(hitIdx,1); } else { part.markers.push({x,y}); }
+    if(hitIdx>=0){ part.markers.splice(hitIdx,1); } else { part.markers.push({x,y,rot:0}); }
     renderParts(); redrawOverlay();
     return;
   }
@@ -754,6 +815,212 @@ document.addEventListener('keydown',(e)=>{
   }
   if((state.mode==='calibH'||state.mode==='calibV') && e.key==='Escape'){
     state.calibPoints=[]; redrawOverlay();
+  }
+});
+
+// ---------- select mode: hit testing ----------
+function overlayPointFromEvent(e){
+  const rect = els.overlay.getBoundingClientRect();
+  return {
+    x:(e.clientX-rect.left) * (els.overlay.width/rect.width),
+    y:(e.clientY-rect.top) * (els.overlay.height/rect.height),
+  };
+}
+function findMarkerAt(x,y){
+  for(let pi=state.parts.length-1; pi>=0; pi--){
+    const p = state.parts[pi];
+    if(!getLayer(p.layerId).visible) continue;
+    for(let idx=p.markers.length-1; idx>=0; idx--){
+      const m = p.markers[idx];
+      if(Math.hypot(m.x-x,m.y-y)<13) return {partId:p.id, idx};
+    }
+  }
+  return null;
+}
+function distToSegment(px,py,ax,ay,bx,by){
+  const dx=bx-ax, dy=by-ay;
+  const lenSq = dx*dx+dy*dy;
+  let t = lenSq ? ((px-ax)*dx+(py-ay)*dy)/lenSq : 0;
+  t = Math.max(0,Math.min(1,t));
+  const cx = ax+t*dx, cy = ay+t*dy;
+  return Math.hypot(px-cx,py-cy);
+}
+function findWireAt(x,y){
+  for(let wi=state.wires.length-1; wi>=0; wi--){
+    const w = state.wires[wi];
+    if(!getLayer(w.layerId).visible) continue;
+    for(let i=1;i<w.points.length;i++){
+      if(distToSegment(x,y,w.points[i-1].x,w.points[i-1].y,w.points[i].x,w.points[i].y)<8) return w;
+    }
+  }
+  return null;
+}
+function anySelectedOnLockedLayer(){
+  for(const s of state.selection.markers){
+    const p = state.parts.find(pp=>pp.id===s.partId);
+    if(p && getLayer(p.layerId).locked) return true;
+  }
+  for(const wid of state.selection.wireIds){
+    const w = state.wires.find(ww=>ww.id===wid);
+    if(w && getLayer(w.layerId).locked) return true;
+  }
+  return false;
+}
+
+// ---------- select mode: mouse interaction ----------
+els.overlay.addEventListener('mousedown',(e)=>{
+  if(state.mode!=='select') return;
+  const {x,y} = overlayPointFromEvent(e);
+  const hitMarker = findMarkerAt(x,y);
+  const hitWire = !hitMarker ? findWireAt(x,y) : null;
+  const shift = e.shiftKey;
+
+  if(hitMarker){
+    const already = isMarkerSelected(hitMarker.partId, hitMarker.idx);
+    if(shift){
+      if(already) state.selection.markers = state.selection.markers.filter(s=>!(s.partId===hitMarker.partId && s.idx===hitMarker.idx));
+      else state.selection.markers.push(hitMarker);
+    } else if(!already){
+      state.selection = {markers:[hitMarker], wireIds:[]};
+    }
+  } else if(hitWire){
+    const already = isWireSelected(hitWire.id);
+    if(shift){
+      if(already) state.selection.wireIds = state.selection.wireIds.filter(id=>id!==hitWire.id);
+      else state.selection.wireIds.push(hitWire.id);
+    } else if(!already){
+      state.selection = {markers:[], wireIds:[hitWire.id]};
+    }
+  } else {
+    if(!shift) clearSelection();
+    state.rectSelectStart = {x,y}; state.rectSelectCur = {x,y};
+    renderPropertyPanel(); redrawOverlay();
+    return;
+  }
+
+  state.dragState = {
+    origin:{x,y}, moved:false,
+    startMarkers: state.selection.markers.map(s=>{
+      const p = state.parts.find(pp=>pp.id===s.partId);
+      const m = p.markers[s.idx];
+      return {partId:s.partId, idx:s.idx, x:m.x, y:m.y};
+    }),
+    startWires: state.selection.wireIds.map(id=>{
+      const w = state.wires.find(ww=>ww.id===id);
+      return {id, points: w.points.map(pt=>({x:pt.x,y:pt.y}))};
+    }),
+  };
+  renderPropertyPanel(); redrawOverlay();
+});
+document.addEventListener('mousemove',(e)=>{
+  if(state.mode!=='select') return;
+  if(!state.dragState && !state.rectSelectStart) return;
+  const {x,y} = overlayPointFromEvent(e);
+  if(state.dragState){
+    const dx = x-state.dragState.origin.x, dy = y-state.dragState.origin.y;
+    if(!state.dragState.moved && Math.hypot(dx,dy)>3){
+      if(anySelectedOnLockedLayer()){ state.dragState=null; return; }
+      pushUndo();
+      state.dragState.moved = true;
+    }
+    if(state.dragState.moved){
+      state.dragState.startMarkers.forEach(sm=>{
+        const p = state.parts.find(pp=>pp.id===sm.partId);
+        const m = p.markers[sm.idx];
+        const snapped = snapPoint({x:sm.x+dx, y:sm.y+dy});
+        m.x = snapped.x; m.y = snapped.y;
+      });
+      state.dragState.startWires.forEach(sw=>{
+        const w = state.wires.find(ww=>ww.id===sw.id);
+        w.points = sw.points.map(pt=>({x:pt.x+dx, y:pt.y+dy}));
+      });
+      redrawOverlay();
+    }
+    return;
+  }
+  if(state.rectSelectStart){
+    state.rectSelectCur = {x,y};
+    redrawOverlay();
+  }
+});
+document.addEventListener('mouseup',()=>{
+  if(state.mode!=='select') return;
+  if(state.dragState){
+    state.dragState = null;
+    renderParts(); renderPropertyPanel();
+    return;
+  }
+  if(state.rectSelectStart){
+    const {x:x1,y:y1} = state.rectSelectStart, {x:x2,y:y2} = state.rectSelectCur;
+    const rx1=Math.min(x1,x2), rx2=Math.max(x1,x2), ry1=Math.min(y1,y2), ry2=Math.max(y1,y2);
+    if(Math.hypot(x2-x1,y2-y1)>3){
+      state.parts.forEach(p=>{
+        if(!getLayer(p.layerId).visible) return;
+        p.markers.forEach((m,idx)=>{
+          if(m.x>=rx1 && m.x<=rx2 && m.y>=ry1 && m.y<=ry2 && !isMarkerSelected(p.id,idx)) state.selection.markers.push({partId:p.id, idx});
+        });
+      });
+      state.wires.forEach(w=>{
+        if(!getLayer(w.layerId).visible) return;
+        const allIn = w.points.every(pt=>pt.x>=rx1 && pt.x<=rx2 && pt.y>=ry1 && pt.y<=ry2);
+        if(allIn && !isWireSelected(w.id)) state.selection.wireIds.push(w.id);
+      });
+    }
+    state.rectSelectStart = null; state.rectSelectCur = null;
+    renderPropertyPanel(); redrawOverlay();
+  }
+});
+
+// ---------- select mode: keyboard (rotate / nudge / delete) ----------
+document.addEventListener('keydown',(e)=>{
+  if(state.mode!=='select' || !hasSelection()) return;
+  const tag = (e.target && e.target.tagName) || '';
+  if(tag==='INPUT' || tag==='SELECT' || tag==='TEXTAREA') return;
+
+  if(e.key==='Delete' || e.key==='Backspace'){
+    e.preventDefault();
+    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから削除してください。'); return; }
+    pushUndo();
+    state.selection.markers.slice().sort((a,b)=>b.idx-a.idx).forEach(s=>{
+      const p = state.parts.find(pp=>pp.id===s.partId);
+      if(p) p.markers.splice(s.idx,1);
+    });
+    state.wires = state.wires.filter(w=>!isWireSelected(w.id));
+    clearSelection();
+    renderParts(); renderWires(); renderPropertyPanel(); redrawOverlay();
+    return;
+  }
+  if(e.key==='r' || e.key==='R'){
+    if(!state.selection.markers.length) return;
+    e.preventDefault();
+    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから回転してください。'); return; }
+    pushUndo();
+    state.selection.markers.forEach(s=>{
+      const p = state.parts.find(pp=>pp.id===s.partId);
+      const m = p.markers[s.idx];
+      m.rot = ((m.rot||0)+90)%360;
+    });
+    renderPropertyPanel(); redrawOverlay();
+    return;
+  }
+  const arrowMap = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
+  if(arrowMap[e.key]){
+    e.preventDefault();
+    if(anySelectedOnLockedLayer()){ return; }
+    const step = e.shiftKey ? 10 : 1;
+    const [dxu,dyu] = arrowMap[e.key];
+    const dx = dxu*step, dy = dyu*step;
+    pushUndo();
+    state.selection.markers.forEach(s=>{
+      const p = state.parts.find(pp=>pp.id===s.partId);
+      const m = p.markers[s.idx];
+      m.x += dx; m.y += dy;
+    });
+    state.selection.wireIds.forEach(id=>{
+      const w = state.wires.find(ww=>ww.id===id);
+      w.points = w.points.map(pt=>({x:pt.x+dx, y:pt.y+dy}));
+    });
+    renderPropertyPanel(); redrawOverlay();
   }
 });
 document.getElementById('wireDoneBtn').onclick = ()=>{
@@ -1093,6 +1360,74 @@ document.getElementById('exportXlsx').onclick = ()=>{
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), '積算サマリー');
   XLSX.writeFile(wb, '拾い出し積算.xlsx');
 };
+
+// ---------- layer / property tabs ----------
+document.getElementById('tabLayers').onclick = ()=>{
+  document.getElementById('tabLayers').classList.add('active');
+  document.getElementById('tabProps').classList.remove('active');
+  document.getElementById('layerTabBody').style.display='';
+  document.getElementById('propTabBody').style.display='none';
+};
+document.getElementById('tabProps').onclick = ()=>{
+  document.getElementById('tabProps').classList.add('active');
+  document.getElementById('tabLayers').classList.remove('active');
+  document.getElementById('layerTabBody').style.display='none';
+  document.getElementById('propTabBody').style.display='';
+};
+function renderPropertyPanel(){
+  const el = document.getElementById('propContent');
+  const sel = state.selection;
+  if(!sel.markers.length && !sel.wireIds.length){
+    el.innerHTML = '図面上のシンボルや配線を「選択/移動」モードでクリックすると、ここで詳細を編集できます。';
+    return;
+  }
+  const partNames = new Set(sel.markers.map(s=>{ const p=state.parts.find(pp=>pp.id===s.partId); return p?p.name:'?'; }));
+  const wireNames = sel.wireIds.map(id=>{ const w=state.wires.find(ww=>ww.id===id); return w?w.name:'?'; });
+  let html = '';
+  if(sel.markers.length){
+    const label = partNames.size===1 ? [...partNames][0] : '部品(複数種類)';
+    html += `<div class="prop-row"><span>${label}</span><b>${sel.markers.length}箇所</b></div>`;
+    if(sel.markers.length===1){
+      const s = sel.markers[0];
+      const p = state.parts.find(pp=>pp.id===s.partId);
+      const m = p.markers[s.idx];
+      html += `<div class="prop-row"><span>座標</span><span class="small-note">x:${Math.round(m.x)} y:${Math.round(m.y)}</span></div>`;
+      html += `<div class="prop-row"><span>向き</span><span class="small-note">${m.rot||0}°</span></div>`;
+      html += `<div class="prop-row"><span>レイヤー</span><span class="small-note">${getLayer(p.layerId).name}</span></div>`;
+    }
+  }
+  if(sel.wireIds.length){
+    html += `<div class="prop-row"><span>配線</span><b>${wireNames.join(', ')}</b></div>`;
+  }
+  html += `<div class="prop-actions">`;
+  if(sel.markers.length) html += `<button class="btn" id="propRotateBtn">🔁 90°回転 (R)</button>`;
+  html += `<button class="btn danger" id="propDeleteBtn">🗑 削除 (Delete)</button>`;
+  html += `</div>`;
+  html += `<div class="small-note" style="margin-top:8px;">選択中はドラッグで移動、矢印キーで微調整(Shiftで大きく)できます。</div>`;
+  el.innerHTML = html;
+  const rotateBtn = document.getElementById('propRotateBtn');
+  if(rotateBtn) rotateBtn.onclick = ()=>{
+    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。'); return; }
+    pushUndo();
+    sel.markers.forEach(s=>{
+      const p = state.parts.find(pp=>pp.id===s.partId);
+      const m = p.markers[s.idx];
+      m.rot = ((m.rot||0)+90)%360;
+    });
+    renderPropertyPanel(); redrawOverlay();
+  };
+  document.getElementById('propDeleteBtn').onclick = ()=>{
+    if(anySelectedOnLockedLayer()){ alert('選択内にロック中のレイヤーが含まれています。解除してから削除してください。'); return; }
+    pushUndo();
+    sel.markers.slice().sort((a,b)=>b.idx-a.idx).forEach(s=>{
+      const p = state.parts.find(pp=>pp.id===s.partId);
+      if(p) p.markers.splice(s.idx,1);
+    });
+    state.wires = state.wires.filter(w=>!isWireSelected(w.id));
+    clearSelection();
+    renderParts(); renderWires(); renderPropertyPanel(); redrawOverlay();
+  };
+}
 
 // ---------- cable spec presets ----------
 function buildCableSpecDatalist(){
