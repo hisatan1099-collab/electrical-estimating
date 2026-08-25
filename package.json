@@ -2,37 +2,16 @@
   "name": "electrical-estimating",
   "version": "1.2.0",
   "description": "電気拾い出し・積算補助ツール (デスクトップアプリ)",
-  "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder"
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
   },
   "author": "",
   "license": "UNLICENSED",
   "private": true,
   "devDependencies": {
-    "electron": "^32.0.0",
-    "electron-builder": "^25.0.0",
+    "@tauri-apps/cli": "^2.9.2",
     "playwright": "^1.62.1"
-  },
-  "build": {
-    "appId": "com.hisatan1099.electricalestimating",
-    "productName": "電気拾い出し積算ツール",
-    "files": [
-      "main.js",
-      "app/**/*"
-    ],
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": "nsis"
-    },
-    "mac": {
-      "target": "dmg"
-    },
-    "linux": {
-      "target": "AppImage"
-    }
   }
 }
