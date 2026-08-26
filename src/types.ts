@@ -111,6 +111,11 @@ export interface Project {
   circuits: CircuitEntry[];
   boards: BoardEntry[];
   receivingInfo: ReceivingInfo;
+
+  // ---- ステップ3 ----
+  correctCounts: CorrectCountEntry[];
+  /** 器具表・機器リストがこの案件に無いことを確認済み */
+  noFixtureList: boolean;
 }
 
 export interface LegendEntry {
@@ -164,6 +169,48 @@ export interface ReceivingInfo {
   cableRackOrConduit: 'あり' | 'なし' | '不明' | null;
 }
 
+export type SupplyCategory = '本工事' | '支給品' | '別途工事';
+export const SUPPLY_CATEGORIES: SupplyCategory[] = ['本工事', '支給品', '別途工事'];
+
+/**
+ * 設計者が確定させた"正解"の数量(器具表・機器リスト、または平面図の室名枠から)。
+ * ステップ5で拾った数と自動照合するための基準値になる。
+ */
+export interface CorrectCountEntry {
+  id: string;
+  symbolLabel: string;
+  materialName: string;
+  floor: string;
+  room: string;
+  quantity: number;
+  /** 仕様(W数・型番など) */
+  spec: string;
+  supplyCategory: SupplyCategory;
+  /** 常識チェックで検出された食い違いの理由。無ければnull。 */
+  flagReason: string | null;
+}
+
+interface CommonSenseRule {
+  nameKeyword: string;
+  specPattern: RegExp;
+  reason: string;
+}
+
+const COMMON_SENSE_RULES: CommonSenseRule[] = [
+  { nameKeyword: 'ペンダント', specPattern: /1灯/, reason: 'ペンダントで「1灯」相当は仕様と数が食い違っている可能性があります' },
+  { nameKeyword: '階段', specPattern: /3灯|三灯/, reason: '階段灯で「3灯」は仕様と数が食い違っている可能性があります' },
+];
+
+/** 名称と仕様の簡単な語句一致チェック。食い違いがあれば理由文字列を返す。 */
+export function checkCommonSense(materialName: string, spec: string): string | null {
+  for (const rule of COMMON_SENSE_RULES) {
+    if (materialName.includes(rule.nameKeyword) && rule.specPattern.test(spec)) {
+      return rule.reason;
+    }
+  }
+  return null;
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -187,5 +234,7 @@ export function emptyProject(): Project {
     circuits: [],
     boards: [],
     receivingInfo: { method: null, hasWattHourMeter: false, mainBreaker: '', mainCableType: '', cableRackOrConduit: null },
+    correctCounts: [],
+    noFixtureList: false,
   };
 }

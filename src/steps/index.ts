@@ -3,6 +3,7 @@ import { renderPlaceholder } from './placeholder';
 import { renderStep0 } from './step0';
 import { renderStep1 } from './step1';
 import { renderStep2 } from './step2';
+import { renderStep3 } from './step3';
 
 export interface StepDef {
   id: number;
@@ -43,7 +44,12 @@ export const STEPS: StepDef[] = [
         .every((c) => c.lengthNoted !== null);
     },
   },
-  { id: 3, label: 'ステップ3: 器具表登録', render: (c) => renderPlaceholder(c, 'ステップ3: 設計者の数を登録する(器具表・機器リスト)'), isComplete: () => false },
+  {
+    id: 3,
+    label: 'ステップ3: 器具表登録',
+    render: renderStep3,
+    isComplete: (p) => p.correctCounts.length > 0 || p.noFixtureList,
+  },
   { id: 4, label: 'ステップ4: 一覧図登録', render: (c) => renderPlaceholder(c, 'ステップ4: 一覧図があれば先に登録'), isComplete: () => false },
   { id: 5, label: 'ステップ5: 平面図で拾う', render: (c) => renderPlaceholder(c, 'ステップ5: 平面図で拾う'), isComplete: () => false },
   { id: 6, label: 'ステップ6: 配線をなぞる', render: (c) => renderPlaceholder(c, 'ステップ6: 配線をなぞる'), isComplete: () => false },

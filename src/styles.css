@@ -151,6 +151,10 @@ body{
 .confirm-box{max-width:360px;}
 .confirm-box p{font-size:13px;margin:0 0 14px;}
 
+.flagged-row td{border-top:1px solid var(--copper);}
+.flag-note-row td{padding-top:0;padding-bottom:8px;}
+.flag-note{color:var(--copper);}
+
 .circuit-table{font-size:12px;}
 .circuit-table input,.circuit-table select{
   background:var(--navy-0);border:1px solid var(--border);border-radius:4px;
