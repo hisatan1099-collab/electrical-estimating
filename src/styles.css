@@ -1,0 +1,104 @@
+:root{
+  --navy-0:#08111d;
+  --navy-1:#0d1c2e;
+  --navy-2:#122539;
+  --grid-line:#1c3450;
+  --copper:#d98a4e;
+  --copper-dim:#8a5a34;
+  --cyan:#4fd1e8;
+  --cyan-dim:#2a6d7c;
+  --text-hi:#eaf1f7;
+  --text-lo:#8ba1b7;
+  --danger:#e85d5d;
+  --ok:#6fd68a;
+  --border:#22405e;
+  --radius:6px;
+}
+*{box-sizing:border-box;}
+html,body,#app{margin:0;padding:0;height:100%;}
+body{
+  background:var(--navy-0);color:var(--text-hi);font-family:'Inter',-apple-system,sans-serif;
+}
+.shell{display:flex;flex-direction:column;height:100vh;min-height:640px;}
+
+.topbar{
+  display:flex;align-items:center;gap:12px;background:var(--navy-1);
+  border-bottom:2px solid var(--copper);padding:10px 16px;flex-wrap:wrap;
+}
+.brand{font-weight:700;font-size:17px;letter-spacing:.02em;}
+.brand span{color:var(--copper);}
+.project-name-input{
+  background:var(--navy-0);border:1px solid var(--border);border-radius:var(--radius);
+  color:var(--text-hi);font-size:13px;padding:7px 10px;min-width:220px;
+}
+.project-name-input:focus{outline:none;border-color:var(--cyan-dim);}
+.spacer{flex:1;}
+.btn{
+  font-size:12.5px;font-weight:600;background:var(--navy-2);color:var(--text-hi);
+  border:1px solid var(--border);border-radius:var(--radius);padding:7px 12px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;transition:.12s;
+}
+.btn:hover{border-color:var(--cyan-dim);color:var(--cyan);}
+.btn.copper{border-color:var(--copper-dim);}
+.btn.copper:hover{border-color:var(--copper);}
+.btn.danger:hover{border-color:var(--danger);color:var(--danger);}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.filelabel input{display:none;}
+
+.stepnav{
+  display:flex;gap:4px;overflow-x:auto;background:var(--navy-1);padding:8px 16px;
+  border-bottom:1px solid var(--border);
+}
+.step-pill{
+  flex-shrink:0;display:flex;align-items:center;gap:6px;background:var(--navy-2);
+  border:1px solid var(--border);border-radius:999px;padding:6px 12px 6px 6px;cursor:pointer;
+  color:var(--text-lo);font-size:12px;white-space:nowrap;
+}
+.step-pill .step-num{
+  width:20px;height:20px;border-radius:50%;background:var(--navy-0);display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;
+}
+.step-pill.active{border-color:var(--cyan-dim);color:var(--text-hi);}
+.step-pill.active .step-num{background:var(--cyan-dim);color:var(--navy-0);}
+.step-pill.done .step-num{background:var(--ok);color:var(--navy-0);}
+.step-pill.locked{opacity:.35;cursor:not-allowed;}
+.step-pill:hover:not(.locked){border-color:var(--cyan-dim);}
+
+.stepcontent{flex:1;overflow-y:auto;padding:20px 24px;}
+.stepcontent h2{
+  margin:0 0 16px;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--copper);
+}
+.placeholder-step{color:var(--text-lo);}
+
+.panel{
+  background:var(--navy-1);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;margin-bottom:16px;
+}
+.panel h3{margin:0 0 12px;font-size:13px;color:var(--copper);}
+.field-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+.field{display:flex;flex-direction:column;gap:4px;min-width:160px;}
+.field label{font-size:11.5px;color:var(--text-lo);}
+.field input,.field select{
+  background:var(--navy-0);border:1px solid var(--border);border-radius:var(--radius);
+  color:var(--text-hi);font-size:13px;padding:7px 9px;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--cyan-dim);}
+
+.page-grid{display:flex;flex-wrap:wrap;gap:12px;}
+.page-card{
+  width:180px;background:var(--navy-2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:8px;display:flex;flex-direction:column;gap:6px;
+}
+.page-card.untagged{border-color:var(--danger);}
+.page-card img{width:100%;border-radius:4px;background:#fff;display:block;}
+.page-card .fname{font-size:10.5px;color:var(--text-lo);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.page-card select{width:100%;font-size:12px;padding:5px 6px;}
+
+.missing-list{display:flex;flex-direction:column;gap:6px;}
+.missing-row{display:flex;align-items:center;gap:10px;font-size:12.5px;}
+.missing-row .name{flex:1;}
+.missing-row.present{color:var(--ok);}
+.missing-row.absent-confirmed{color:var(--text-lo);}
+.missing-row.pending{color:var(--danger);}
+
+.small-note{font-size:11.5px;color:var(--text-lo);}

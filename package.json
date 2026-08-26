@@ -1,17 +1,27 @@
 {
   "name": "electrical-estimating",
-  "version": "1.2.0",
+  "version": "0.1.0",
+  "type": "module",
   "description": "電気拾い出し・積算補助ツール (デスクトップアプリ)",
   "scripts": {
     "tauri": "tauri",
-    "dev": "tauri dev",
-    "build": "tauri build"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "author": "",
   "license": "UNLICENSED",
   "private": true,
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.2",
-    "playwright": "^1.62.1"
+    "esbuild": "^0.28.2",
+    "playwright": "^1.62.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^4.10.38",
+    "xlsx": "^0.18.5"
   }
 }
