@@ -4,6 +4,7 @@ import { renderStep0 } from './step0';
 import { renderStep1 } from './step1';
 import { renderStep2 } from './step2';
 import { renderStep3 } from './step3';
+import { renderStep4 } from './step4';
 
 export interface StepDef {
   id: number;
@@ -50,7 +51,12 @@ export const STEPS: StepDef[] = [
     render: renderStep3,
     isComplete: (p) => p.correctCounts.length > 0 || p.noFixtureList,
   },
-  { id: 4, label: 'ステップ4: 一覧図登録', render: (c) => renderPlaceholder(c, 'ステップ4: 一覧図があれば先に登録'), isComplete: () => false },
+  {
+    id: 4,
+    label: 'ステップ4: 一覧図登録',
+    render: renderStep4,
+    isComplete: (p) => p.wireListEntries.length > 0 || p.noWireList,
+  },
   { id: 5, label: 'ステップ5: 平面図で拾う', render: (c) => renderPlaceholder(c, 'ステップ5: 平面図で拾う'), isComplete: () => false },
   { id: 6, label: 'ステップ6: 配線をなぞる', render: (c) => renderPlaceholder(c, 'ステップ6: 配線をなぞる'), isComplete: () => false },
   { id: 7, label: 'ステップ7: 一式項目', render: (c) => renderPlaceholder(c, 'ステップ7: 図面に無いものを入れる'), isComplete: () => false },

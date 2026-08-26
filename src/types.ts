@@ -116,6 +116,11 @@ export interface Project {
   correctCounts: CorrectCountEntry[];
   /** 器具表・機器リストがこの案件に無いことを確認済み */
   noFixtureList: boolean;
+
+  // ---- ステップ4 ----
+  wireListEntries: WireListEntry[];
+  /** 結線図・ケーブルリストがこの案件に無いことを確認済み */
+  noWireList: boolean;
 }
 
 export interface LegendEntry {
@@ -211,6 +216,25 @@ export function checkCommonSense(materialName: string, spec: string): string | n
   return null;
 }
 
+/**
+ * 結線図・ケーブルリストの1行。平面図より先に、部材を1つずつ並べた図があるなら
+ * それを使う(ステップ4)。プレハブ配線(ユニットケーブル等)は長さを持たず、
+ * セット一式の発注仕様として扱う。
+ */
+export interface WireListEntry {
+  id: string;
+  rowNo: string;
+  material: string;
+  name: string;
+  cableType: string;
+  /** プレハブ(セット一式)扱いの場合はnull */
+  lengthM: number | null;
+  isPrefab: boolean;
+  grounded: boolean;
+  threeWay: boolean;
+  note: string;
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -236,5 +260,7 @@ export function emptyProject(): Project {
     receivingInfo: { method: null, hasWattHourMeter: false, mainBreaker: '', mainCableType: '', cableRackOrConduit: null },
     correctCounts: [],
     noFixtureList: false,
+    wireListEntries: [],
+    noWireList: false,
   };
 }
