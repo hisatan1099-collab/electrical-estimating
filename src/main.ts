@@ -2,6 +2,7 @@ import './styles.css';
 import { store } from './store';
 import { STEPS } from './steps';
 import { emptyProject, type Project } from './types';
+import { askConfirm, showToast } from './ui';
 
 let currentStepId = 0;
 
@@ -67,8 +68,9 @@ function goToStep(idx: number): void {
   STEPS[idx].render(container, renderNav);
 }
 
-document.getElementById('btnNew')!.addEventListener('click', () => {
-  if (!confirm('新規案件を作成します。現在の内容は保存していない場合失われます。よろしいですか?')) return;
+document.getElementById('btnNew')!.addEventListener('click', async () => {
+  const ok = await askConfirm('新規案件を作成します。現在の内容は保存していない場合失われます。よろしいですか?');
+  if (!ok) return;
   store.reset();
   currentStepId = 0;
   goToStep(0);
@@ -95,7 +97,7 @@ document.getElementById('openInput')!.addEventListener('change', async (e) => {
     currentStepId = 0;
     goToStep(0);
   } catch (err) {
-    alert('案件ファイルの読み込みに失敗しました。');
+    showToast('案件ファイルの読み込みに失敗しました。');
     console.error(err);
   } finally {
     input.value = '';

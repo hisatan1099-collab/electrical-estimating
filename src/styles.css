@@ -147,3 +147,12 @@ body{
   border:1px solid var(--danger);color:var(--text-hi);padding:10px 16px;border-radius:var(--radius);
   font-size:12.5px;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,.5);
 }
+
+.confirm-box{max-width:360px;}
+.confirm-box p{font-size:13px;margin:0 0 14px;}
+
+.circuit-table{font-size:12px;}
+.circuit-table input,.circuit-table select{
+  background:var(--navy-0);border:1px solid var(--border);border-radius:4px;
+  color:var(--text-hi);font-size:11.5px;padding:4px 6px;width:100%;
+}

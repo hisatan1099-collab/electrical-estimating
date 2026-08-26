@@ -158,6 +158,9 @@ export interface ReceivingInfo {
   method: '低圧' | '高圧' | null;
   hasWattHourMeter: boolean;
   mainBreaker: string;
+  /** 非住宅のみ:幹線ケーブル種別 */
+  mainCableType: string;
+  /** 非住宅のみ:ケーブルラック・電線管の有無 */
   cableRackOrConduit: 'あり' | 'なし' | '不明' | null;
 }
 
@@ -183,6 +186,6 @@ export function emptyProject(): Project {
     suppliedOrExcluded: null,
     circuits: [],
     boards: [],
-    receivingInfo: { method: null, hasWattHourMeter: false, mainBreaker: '', cableRackOrConduit: null },
+    receivingInfo: { method: null, hasWattHourMeter: false, mainBreaker: '', mainCableType: '', cableRackOrConduit: null },
   };
 }

@@ -1,6 +1,6 @@
 [package]
 name = "electrical-estimating"
-version = "0.2.0"
+version = "0.3.0"
 description = "電気拾い出し・積算補助ツール"
 authors = ["hisatan1099-collab"]
 license = ""

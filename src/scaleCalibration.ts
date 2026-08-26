@@ -1,6 +1,7 @@
 import { store } from './store';
 import { base64ToArrayBuffer, loadPdf, renderPageToCanvas } from './pdf';
 import type { DrawingPage } from './types';
+import { showToast } from './ui';
 
 interface Point {
   x: number;
@@ -40,14 +41,6 @@ function askMm(clientX: number, clientY: number, label: string): Promise<number 
       if (ev.key === 'Escape') cleanup(null);
     });
   });
-}
-
-function showToast(message: string): void {
-  const t = document.createElement('div');
-  t.className = 'toast';
-  t.textContent = message;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3200);
 }
 
 /** 平面図ページの縮尺を、2点クリック+実寸入力で設定するモーダルを開く。 */
