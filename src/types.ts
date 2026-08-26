@@ -44,6 +44,18 @@ export const EXPECTED_DRAWINGS: Record<BuildingType, DrawingType[]> = {
   その他: [],
 };
 
+// 縮尺設定の対象になる「平面図」種別。
+export const PLAN_DRAWING_TYPES: DrawingType[] = ['電灯平面', 'コンセント平面', '動力平面', '弱電平面', '防災平面'];
+
+export interface ScaleCheck {
+  /** 検算に使った2点間の実寸入力値(mm) */
+  actualMm: number;
+  /** 既に設定済みの縮尺で算出した2点間の距離(mm) */
+  measuredMm: number;
+  /** 誤差(%)。0に近いほど良い。 */
+  errorPercent: number;
+}
+
 export interface DrawingPage {
   id: string;
   fileName: string;
@@ -55,8 +67,10 @@ export interface DrawingPage {
   rotation: 0 | 90 | 180 | 270;
   /** サムネイル画像(data URL)。表示用にキャッシュ。 */
   thumbnailDataUrl?: string;
-  scaleXmmPerPx?: number;
-  scaleYmmPerPx?: number;
+  /** 縮尺(mm/px)。2点クリック+実寸入力から算出。 */
+  scaleMmPerPx?: number;
+  /** 別の寸法線での検算結果(直近1回分)。 */
+  scaleCheck?: ScaleCheck | null;
 }
 
 export interface StoredFile {
@@ -90,6 +104,8 @@ export interface Project {
   // ---- ステップ1以降(v1で拡充) ----
   legends: LegendEntry[];
   notes: NoteEntry[];
+  /** 「支給品・別途」に該当するものがこの案件にあるか(注記から確認した結果)。 */
+  suppliedOrExcluded: 'あり' | 'なし' | null;
 
   // ---- ステップ2 ----
   circuits: CircuitEntry[];
@@ -164,6 +180,7 @@ export function emptyProject(): Project {
     updatedAt: t,
     legends: [],
     notes: [],
+    suppliedOrExcluded: null,
     circuits: [],
     boards: [],
     receivingInfo: { method: null, hasWattHourMeter: false, mainBreaker: '', cableRackOrConduit: null },

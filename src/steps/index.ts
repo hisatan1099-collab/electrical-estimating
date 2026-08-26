@@ -1,6 +1,7 @@
-import type { Project } from '../types';
+import { PLAN_DRAWING_TYPES, type Project } from '../types';
 import { renderPlaceholder } from './placeholder';
 import { renderStep0 } from './step0';
+import { renderStep1 } from './step1';
 
 export interface StepDef {
   id: number;
@@ -18,7 +19,17 @@ export const STEPS: StepDef[] = [
     render: renderStep0,
     isComplete: (p) => p.pages.length > 0 && p.pages.every((pg) => pg.drawingType !== null),
   },
-  { id: 1, label: 'ステップ1: 読む準備', render: (c) => renderPlaceholder(c, 'ステップ1: 読む準備(凡例・注記・縮尺)'), isComplete: () => false },
+  {
+    id: 1,
+    label: 'ステップ1: 読む準備',
+    render: renderStep1,
+    isComplete: (p) => {
+      if (p.legends.length === 0) return false;
+      if (p.suppliedOrExcluded === null) return false;
+      const planPages = p.pages.filter((pg) => pg.drawingType && PLAN_DRAWING_TYPES.includes(pg.drawingType));
+      return planPages.every((pg) => pg.scaleMmPerPx != null);
+    },
+  },
   { id: 2, label: 'ステップ2: 骨格確定', render: (c) => renderPlaceholder(c, 'ステップ2: 骨格を確定する(受電・幹線・盤・回路)'), isComplete: () => false },
   { id: 3, label: 'ステップ3: 器具表登録', render: (c) => renderPlaceholder(c, 'ステップ3: 設計者の数を登録する(器具表・機器リスト)'), isComplete: () => false },
   { id: 4, label: 'ステップ4: 一覧図登録', render: (c) => renderPlaceholder(c, 'ステップ4: 一覧図があれば先に登録'), isComplete: () => false },

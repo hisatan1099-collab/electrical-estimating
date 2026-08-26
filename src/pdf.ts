@@ -24,6 +24,21 @@ export async function renderThumbnail(
   return canvas.toDataURL('image/png');
 }
 
+/** 指定ページを実寸クリック用にcanvasへ描画する(拡大率はcaller側で指定)。 */
+export async function renderPageToCanvas(
+  doc: pdfjsLib.PDFDocumentProxy,
+  pageNumber: number,
+  canvas: HTMLCanvasElement,
+  scale = 1.5,
+): Promise<void> {
+  const page = await doc.getPage(pageNumber);
+  const viewport = page.getViewport({ scale });
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d')!;
+  await page.render({ canvasContext: ctx, viewport }).promise;
+}
+
 export function arrayBufferToBase64(buf: ArrayBuffer): string {
   let binary = '';
   const bytes = new Uint8Array(buf);
