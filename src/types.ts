@@ -139,6 +139,9 @@ export interface Project {
   pickupMarkers: PickupMarker[];
   roomRects: RoomRect[];
   categoryProgress: CategoryProgress[];
+
+  // ---- ステップ6 ----
+  wireTraces: WireTrace[];
 }
 
 export interface LegendEntry {
@@ -174,6 +177,10 @@ export interface CircuitEntry {
   wiringMethod: string;
   lengthNoted: '記載あり' | '記載なし' | null;
   traceStatus: 'トレース済み' | '長さ入力済み' | '要確認' | null;
+  /** 図面に長さが直接記載されている場合の直接入力値(m)。traceStatus='長さ入力済み'の根拠。 */
+  directLengthM: number | null;
+  /** 直接入力値の出典ページ(pages[].id)。どの図面のどこに書いてあったかを追える。 */
+  directLengthSourcePageId: string | null;
 }
 
 export type BoardType = '分電盤' | '動力盤' | '制御盤' | '情報分電盤';
@@ -312,6 +319,30 @@ export function defaultCategoryProgress(): CategoryProgress[] {
   return PICKUP_CATEGORIES.map((category) => ({ category, status: '未着手' as CategoryStatus, zeroCountDecisions: [] }));
 }
 
+export type TraceType = '配線' | '電線管' | 'ケーブルラック';
+
+/**
+ * ステップ6: 1回路につき1本のなぞり線(平面図上の折れ線)。
+ * 配線が重なる箇所では、回路ごとに別々のWireTraceとして同じ座標付近を
+ * 何度もなぞることになる想定(意図的に非統合・非重複除去)。
+ * 回路一覧側で色分け表示することで、重なっていても区別できるようにする。
+ */
+export interface WireTrace {
+  id: string;
+  circuitId: string;
+  pageId: string;
+  traceType: TraceType;
+  /** キャンバス座標(px, SCALE=1.5基準)の折れ線の頂点列。 */
+  points: { x: number; y: number }[];
+  /** 折れ線から縮尺換算した実長(m)。 */
+  baseLenM: number;
+  /** 立上り・引下げなど、平面上には現れない加算長(m)。+階高/+天井高/+出だしのプリセットボタンで積み増す。 */
+  riserM: number;
+  /** 余長率(%)。0〜。 */
+  extraPercent: number;
+  note: string;
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -343,5 +374,6 @@ export function emptyProject(): Project {
     pickupMarkers: [],
     roomRects: [],
     categoryProgress: defaultCategoryProgress(),
+    wireTraces: [],
   };
 }

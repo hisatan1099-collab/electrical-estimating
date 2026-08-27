@@ -6,6 +6,7 @@ import { renderStep2 } from './step2';
 import { renderStep3 } from './step3';
 import { renderStep4 } from './step4';
 import { renderStep5 } from './step5';
+import { renderStep6 } from './step6';
 
 export interface StepDef {
   id: number;
@@ -64,7 +65,12 @@ export const STEPS: StepDef[] = [
     render: renderStep5,
     isComplete: (p) => p.categoryProgress.every((c) => c.status !== '未着手'),
   },
-  { id: 6, label: 'ステップ6: 配線をなぞる', render: (c) => renderPlaceholder(c, 'ステップ6: 配線をなぞる'), isComplete: () => false },
+  {
+    id: 6,
+    label: 'ステップ6: 配線をなぞる',
+    render: renderStep6,
+    isComplete: (p) => p.circuits.length > 0 && p.circuits.every((c) => c.traceStatus !== null),
+  },
   { id: 7, label: 'ステップ7: 一式項目', render: (c) => renderPlaceholder(c, 'ステップ7: 図面に無いものを入れる'), isComplete: () => false },
   { id: 8, label: 'ステップ8: 検算', render: (c) => renderPlaceholder(c, 'ステップ8: 検算(自動突き合わせ)'), isComplete: () => false },
   { id: 9, label: 'ステップ9: 積算', render: (c) => renderPlaceholder(c, 'ステップ9: 積算(単価・施工費)'), isComplete: () => false },

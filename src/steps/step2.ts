@@ -258,6 +258,8 @@ export function renderStep2(container: HTMLElement, onChange: () => void): void 
       wiringMethod: '',
       lengthNoted: null,
       traceStatus: null,
+      directLengthM: null,
+      directLengthSourcePageId: null,
     };
     store.project.circuits.push(entry);
     renderCircuitList();
