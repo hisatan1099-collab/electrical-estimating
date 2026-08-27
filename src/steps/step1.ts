@@ -1,5 +1,13 @@
 import { store } from '../store';
-import { newId, PLAN_DRAWING_TYPES, type NoteCategory, type LegendEntry, type NoteEntry } from '../types';
+import {
+  newId,
+  PICKUP_CATEGORIES,
+  PLAN_DRAWING_TYPES,
+  type LegendEntry,
+  type NoteCategory,
+  type NoteEntry,
+  type PickupCategory,
+} from '../types';
 import { openScaleCalibrationModal } from '../scaleCalibration';
 
 const NOTE_CATEGORIES: NoteCategory[] = ['配線方式', '支給品・別途', '壁仕様', '参照図面'];
@@ -17,6 +25,13 @@ export function renderStep1(container: HTMLElement, onChange: () => void): void 
         <div class="field"><label>部材名</label><input type="text" id="newMaterialName" placeholder="例: 一般照明"></div>
         <div class="field"><label>分類</label><input type="text" id="newCategory" placeholder="例: 照明"></div>
         <div class="field"><label>レイヤー</label><input type="text" id="newLayer" placeholder="例: 電灯回路"></div>
+        <div class="field">
+          <label>拾い出し分類 <span class="small-note">(ステップ5用・任意)</span></label>
+          <select id="newPickupCategory">
+            <option value="">未設定</option>
+            ${PICKUP_CATEGORIES.map((c) => `<option value="${c}">${c}</option>`).join('')}
+          </select>
+        </div>
         <div class="field" style="justify-content:flex-end;"><button class="btn copper" id="addLegend">＋追加</button></div>
       </div>
     </div>
@@ -55,7 +70,7 @@ export function renderStep1(container: HTMLElement, onChange: () => void): void 
     }
     el.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>記号</th><th>部材名</th><th>分類</th><th>レイヤー</th><th></th></tr></thead>
+        <thead><tr><th>記号</th><th>部材名</th><th>分類</th><th>レイヤー</th><th>拾い出し分類</th><th></th></tr></thead>
         <tbody>
           ${store.project.legends
             .map(
@@ -64,6 +79,12 @@ export function renderStep1(container: HTMLElement, onChange: () => void): void 
               <td>${escapeHtml(l.materialName)}</td>
               <td>${escapeHtml(l.category)}</td>
               <td>${escapeHtml(l.layer)}</td>
+              <td>
+                <select class="legendPickupCategory" data-id="${l.id}">
+                  <option value="">未設定</option>
+                  ${PICKUP_CATEGORIES.map((c) => `<option value="${c}" ${c === l.pickupCategory ? 'selected' : ''}>${c}</option>`).join('')}
+                </select>
+              </td>
               <td><button class="btn danger delLegend" data-id="${l.id}">✕</button></td>
             </tr>`,
             )
@@ -71,6 +92,13 @@ export function renderStep1(container: HTMLElement, onChange: () => void): void 
         </tbody>
       </table>
     `;
+    el.querySelectorAll<HTMLSelectElement>('.legendPickupCategory').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        const l = store.project.legends.find((x) => x.id === sel.dataset.id);
+        if (l) l.pickupCategory = (sel.value || null) as PickupCategory | null;
+        onChange();
+      });
+    });
     el.querySelectorAll<HTMLButtonElement>('.delLegend').forEach((btn) => {
       btn.addEventListener('click', () => {
         store.project.legends = store.project.legends.filter((l) => l.id !== btn.dataset.id);
@@ -84,17 +112,20 @@ export function renderStep1(container: HTMLElement, onChange: () => void): void 
     const symbolLabel = getVal(container, '#newSymbolLabel');
     const materialName = getVal(container, '#newMaterialName');
     if (!materialName) return;
+    const pickupCategorySel = container.querySelector<HTMLSelectElement>('#newPickupCategory')!;
     const entry: LegendEntry = {
       id: newId('legend'),
       symbolLabel,
       materialName,
       category: getVal(container, '#newCategory'),
       layer: getVal(container, '#newLayer'),
+      pickupCategory: (pickupCategorySel.value || null) as PickupCategory | null,
     };
     store.project.legends.push(entry);
     ['#newSymbolLabel', '#newMaterialName', '#newCategory', '#newLayer'].forEach((sel) => {
       (container.querySelector<HTMLInputElement>(sel)!).value = '';
     });
+    pickupCategorySel.value = '';
     renderLegendList();
     onChange();
   });

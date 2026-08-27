@@ -47,6 +47,18 @@ export const EXPECTED_DRAWINGS: Record<BuildingType, DrawingType[]> = {
 // 縮尺設定の対象になる「平面図」種別。
 export const PLAN_DRAWING_TYPES: DrawingType[] = ['電灯平面', 'コンセント平面', '動力平面', '弱電平面', '防災平面'];
 
+// ステップ5: 平面図の拾い出しは、この順番で1種類ずつ進める(固定)。
+export const PICKUP_CATEGORIES = [
+  '機器',
+  '照明',
+  'スイッチ',
+  'コンセント',
+  '動力機器',
+  '弱電・防災',
+  '貫通・スリーブ・配管',
+] as const;
+export type PickupCategory = (typeof PICKUP_CATEGORIES)[number];
+
 export interface ScaleCheck {
   /** 検算に使った2点間の実寸入力値(mm) */
   actualMm: number;
@@ -121,6 +133,12 @@ export interface Project {
   wireListEntries: WireListEntry[];
   /** 結線図・ケーブルリストがこの案件に無いことを確認済み */
   noWireList: boolean;
+
+  // ---- ステップ5 ----
+  pickupParts: PickupPart[];
+  pickupMarkers: PickupMarker[];
+  roomRects: RoomRect[];
+  categoryProgress: CategoryProgress[];
 }
 
 export interface LegendEntry {
@@ -129,6 +147,8 @@ export interface LegendEntry {
   materialName: string;
   category: string;
   layer: string;
+  /** ステップ5の拾い出しカテゴリのどれに対応するか(0件チェックに使う)。未設定ならnull。 */
+  pickupCategory: PickupCategory | null;
 }
 
 export type NoteCategory = '配線方式' | '支給品・別途' | '壁仕様' | '参照図面';
@@ -235,6 +255,63 @@ export interface WireListEntry {
   note: string;
 }
 
+/**
+ * ステップ5で拾う「部材」。カテゴリ内で選んでクリック→マーカーを置く対象。
+ * legendIdが設定されているものは、ステップ1の凡例から自動生成された部材で、
+ * カテゴリ完了時の0件チェック対象になる。ユーザーが自由に追加した部材は
+ * legendId=nullで、0件チェック対象にはならない。
+ */
+export interface PickupPart {
+  id: string;
+  category: PickupCategory;
+  name: string;
+  color: string;
+  legendId: string | null;
+}
+
+export interface PickupMarker {
+  id: string;
+  pageId: string;
+  partId: string;
+  x: number;
+  y: number;
+  roomId: string | null;
+  /** 口数 */
+  gangCount: number | null;
+  grounded: boolean;
+  waterproof: boolean;
+  threeWay: boolean;
+  needsCheckReason: string | null;
+}
+
+export interface RoomRect {
+  id: string;
+  pageId: string;
+  floor: string;
+  room: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export type CategoryStatus = '未着手' | '完了' | '該当なし';
+
+export interface ZeroCountDecision {
+  legendId: string;
+  decision: '該当なし' | '見落とし';
+}
+
+export interface CategoryProgress {
+  category: PickupCategory;
+  status: CategoryStatus;
+  zeroCountDecisions: ZeroCountDecision[];
+}
+
+export function defaultCategoryProgress(): CategoryProgress[] {
+  return PICKUP_CATEGORIES.map((category) => ({ category, status: '未着手' as CategoryStatus, zeroCountDecisions: [] }));
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -262,5 +339,9 @@ export function emptyProject(): Project {
     noFixtureList: false,
     wireListEntries: [],
     noWireList: false,
+    pickupParts: [],
+    pickupMarkers: [],
+    roomRects: [],
+    categoryProgress: defaultCategoryProgress(),
   };
 }
